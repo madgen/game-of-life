@@ -23,6 +23,7 @@ main =
   , subscriptions = subscriptions
   }
 
+
 -- MODEL
 
 
@@ -74,11 +75,14 @@ isLive ix board =
       Nothing ->
         False
 
+
 width : Int
 width = 24
 
+
 height : Int
 height = 24
+
 
 init : Model
 init = Array.initialize height (always (Array.initialize width (always False)))
