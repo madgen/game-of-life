@@ -1,11 +1,14 @@
 module Main exposing (..)
 
 import Browser
+import Browser.Dom exposing (Viewport, getViewport)
 import Browser.Events
 
 import Json.Decode as Decode
 
 import Array exposing (Array, initialize, indexedMap, get, set)
+
+import Task
 
 import Html exposing (Html, div, p, text)
 import Html.Attributes exposing (style)
@@ -17,7 +20,7 @@ import Html.Events exposing (onClick)
 
 main =
   Browser.element
-  { init = \() -> (init, Cmd.none)
+  { init = \() -> init
   , update = \msg model -> (update msg model, Cmd.none)
   , view = view
   , subscriptions = subscriptions
@@ -27,25 +30,32 @@ main =
 -- MODEL
 
 
-type alias Model = Array (Array Bool)
+type alias Model =
+  { board  : Board
+  , width  : Int
+  , height : Int
+  }
 
 
-getCell : (Int, Int) -> Model -> Maybe Bool
-getCell (x, y) model =
-  Maybe.andThen (get x) (get y model)
+type alias Board = Array (Array Bool)
 
 
-setCell : (Int, Int) -> Bool -> Model -> Model
-setCell (x, y) value model =
-  case get y model of
+getCell : (Int, Int) -> Board -> Maybe Bool
+getCell (x, y) board =
+  Maybe.andThen (get x) (get y board)
+
+
+setCell : (Int, Int) -> Bool -> Board -> Board
+setCell (x, y) value board =
+  case get y board of
     Just row ->
-      set y (set x value row) model
+      set y (set x value row) board
 
     Nothing ->
-      model
+      board
 
 
-countNeighbours : (Int, Int) -> Model -> Int
+countNeighbours : (Int, Int) -> Board -> Int
 countNeighbours (x,y) board =
   let
     ixs =
@@ -58,7 +68,7 @@ countNeighbours (x,y) board =
   <| List.map (\ix -> getCell ix board) ixs
 
 
-isLive : (Int, Int) -> Model -> Bool
+isLive : (Int, Int) -> Board -> Bool
 isLive ix board =
   let
     neighbourCount = countNeighbours ix board
@@ -76,16 +86,33 @@ isLive ix board =
         False
 
 
-width : Int
-width = 24
+side : Int
+side = 32
 
 
-height : Int
-height = 24
+border : Int
+border = 1
 
 
-init : Model
-init = Array.initialize height (always (Array.initialize width (always False)))
+cellSide : Int
+cellSide = side + border * 2
+
+
+init : (Model, Cmd Msg)
+init =
+  ( { board = Array.initialize 0 (always (Array.initialize 0 (always False)))
+    , width = 0
+    , height = 0
+    }
+  , Task.perform boardSizeAction getViewport
+  )
+
+
+boardSizeAction : Viewport -> Msg
+boardSizeAction { viewport } =
+  SetSize
+    (floor viewport.width // cellSide)
+    (floor viewport.height // cellSide)
 
 
 -- SUBSCRIPTIONS
@@ -114,6 +141,7 @@ toMsg string =
 type Msg
   = Toggle Int Int
   | Tick
+  | SetSize Int Int
   | Nada
 
 
@@ -121,26 +149,38 @@ update : Msg -> Model -> Model
 update msg model =
   case msg of
     Toggle x y ->
-      toggle (x,y) model
+      { model
+      | board = toggle (x,y) model.board
+      }
 
     Tick ->
-      tick model
+      { model
+      | board = tick model.board
+      }
+
+    SetSize width height ->
+      { model
+      | board =
+        Array.initialize height (always (Array.initialize width (always False)))
+      , width = width
+      , height = height
+      }
 
     Nada ->
       model
 
 
-toggle : (Int, Int) -> Model -> Model
-toggle ix model =
-  case getCell ix model of
+toggle : (Int, Int) -> Board -> Board
+toggle ix board =
+  case getCell ix board of
     Just cell ->
-      setCell ix (not cell) model
+      setCell ix (not cell) board
 
     Nothing ->
-      model
+      board
 
 
-tick : Model -> Model
+tick : Board -> Board
 tick board =
   indexedMap (\y row -> indexedMap (\x _ -> isLive (x,y) board) row) board
 
@@ -150,13 +190,16 @@ tick board =
 
 view : Model -> Html Msg
 view model =
-  div []
-  [ viewBoard model
-  , p [] [ text "Press <SPACE> to animate." ]
+  div
+  [ style "position" "relative"
+  , style "margin" "0 auto 0 auto"
+  , style "width" ((String.fromInt (model.width * cellSide)) ++ "px")
+  ]
+  [ viewBoard model.board
   ]
 
 
-viewBoard : Array (Array Bool) -> Html Msg
+viewBoard : Board -> Html Msg
 viewBoard board =
   div [ ]
   <| Array.toList (indexedMap viewRow board)
@@ -165,8 +208,7 @@ viewBoard board =
 viewRow : Int -> Array Bool -> Html Msg
 viewRow y =
   div
-    [ style "height" "30px"
-    , style "border" "1px solid white"
+    [ style "height" (String.fromInt cellSide ++ "px")
     ]
   << Array.toList
   << indexedMap (viewCell y)
@@ -177,9 +219,9 @@ viewCell y x cell =
   div
     [ onClick (Toggle x y)
     , style "display" "inline-block"
-    , style "border" "1px solid white"
-    , style "width" "30px"
-    , style "height" "30px"
+    , style "border" (String.fromInt border ++ "px solid white")
+    , style "width" (String.fromInt side ++ "px")
+    , style "height" (String.fromInt side ++ "px")
     , style "background" (if cell then "black" else "lightgray")
     ]
     [ ]
