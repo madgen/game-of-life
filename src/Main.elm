@@ -112,7 +112,7 @@ boardSizeAction : Viewport -> Msg
 boardSizeAction { viewport } =
   SetSize
     (floor viewport.width // cellSide)
-    (floor viewport.height // cellSide)
+    (floor viewport.height // cellSide - 1)
 
 
 -- SUBSCRIPTIONS
@@ -194,8 +194,21 @@ view model =
   [ style "position" "relative"
   , style "margin" "0 auto 0 auto"
   , style "width" ((String.fromInt (model.width * cellSide)) ++ "px")
+  , style "text-align" "center"
+  , style "font-family" "Helvetica"
   ]
-  [ viewBoard model.board
+  [ div
+    [ onClick Tick
+    , style "padding" "10px 0 3px 0"
+    , style "margin" "0 auto 2px auto"
+    , style "font-weight" "bold"
+    , style "cursor" "pointer"
+    , style "-webkit-user-select" "none"
+    , style "-moz-user-select"    "none"
+    , style "-khtml-user-select"  "none"
+    , style "-ms-user-select"     "none"
+    ] [ text "CLICK (or press SPACE)" ]
+  , viewBoard model.board
   ]
 
 
